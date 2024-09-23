@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaflet WMS with Zoom to Layer</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <style>
+        #map {
+            height: 500px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script>
+        // Step 1: Initialize the Leaflet map
+        var map = L.map('map').setView([0, 0], 2);  // Start with a generic view
+
+        // Step 2: Add a base layer (OpenStreetMap)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Step 3: Add the WMS Layer from ArcGIS Server
+        var wmsLayer = L.tileLayer.wms('http://localhost:6080/arcgis/services/Maryanaj/Maryanaj_14030619/MapServer/WMSServer', {
+            layers: '0',  // Layer ID for the WMS service, replace if necessary
+            format: 'image/png',
+            transparent: true,
+            attribution: 'ArcGIS WMS Layer'
+        }).addTo(map);
+
+        // Step 4: Fetch the Bounding Box from the GetCapabilities
+        fetch('http://localhost:6080/arcgis/services/Maryanaj/Maryanaj_14030619/MapServer/WMSServer?service=WMS&request=GetCapabilities')
+            .then(response => response.text())  // Parse the response as text
+            .then(text => {
+                // Parse the XML
+                var parser = new DOMParser();
+                var xmlDoc = parser.parseFromString(text, "text/xml");
+
+                // Find the <BoundingBox> for EPSG:4326
+                var bbox = xmlDoc.querySelector("BoundingBox[CRS='EPSG:4326']");
+                if (bbox) {
+                    var minx = parseFloat(bbox.getAttribute('minx'));
+                    var miny = parseFloat(bbox.getAttribute('miny'));
+                    var maxx = parseFloat(bbox.getAttribute('maxx'));
+                    var maxy = parseFloat(bbox.getAttribute('maxy'));
+
+                    // Create Leaflet bounds from the bounding box
+                    var bounds = [[miny, minx], [maxy, maxx]];
+
+                    // Step 5: Zoom the map to the WMS layer's extent
+                    map.fitBounds(bounds);
+                } else {
+                    console.error("BoundingBox for EPSG:4326 not found in GetCapabilities.");
+                }
+            })
+            .catch(error => console.error("Error fetching GetCapabilities:", error));
+    </script>
+</body>
+</html>
